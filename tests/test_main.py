@@ -71,9 +71,7 @@ client = TestClient(app)
 #     assert resp.status_code == 200
 #     assert resp.json() == {"message": "Employee Directory API"}
 
-# Test a raw /search, this one to test if we can search the entired database 
-# This was leave here because i need to test as admin that data insert correctly
-#  TODO: We will need to remove this in the feature
+# Test a raw /search, this one to test if we can search everything in org1
 def test_search_no_filters():
     resp = client.get("/search", headers={"X-Organization-ID": "org1"})
     assert resp.status_code == 200
