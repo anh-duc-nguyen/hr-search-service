@@ -1,11 +1,17 @@
 # main.py
-from fastapi import FastAPI, Query, Depends, HTTPException, Request
+from fastapi import FastAPI, Query, Depends, HTTPException, Request, Header
 from fastapi.responses import JSONResponse, HTMLResponse
 from typing import List, Optional
 import sqlite3
 import time
 
-app = FastAPI()
+app = FastAPI(
+    title="HR Employee Search Service",
+    description="Employee search API with per-organization isolation",
+    version="1.0.0",
+    openapi_url="/openapi.json",
+    docs_url="/docs",
+)
 
 RATE_LIMIT = 100   # max requests per WINDOW
 WINDOW     = 60    # seconds
@@ -100,7 +106,9 @@ async def ui():
             Array.from(new FormData(form).entries())
               .filter(([_, v]) => v)
           );
-          const res = await fetch('/search?' + params);
+          const res = await fetch('/search?' + params, {
+            headers: { 'X-Organization-ID': document.querySelector('input[name="organization_id"]').value }
+          });
           const data = await res.json();
           out.textContent = JSON.stringify(data, null, 2);
         });
@@ -111,14 +119,14 @@ async def ui():
 
 @app.get("/search")
 async def search(
-    columns: Optional[List[str]]      = Query(None, description="Columns to include"),
-    status: Optional[str]             = Query(None),
-    location: Optional[str]           = Query(None),
-    department: Optional[str]         = Query(None),
-    position: Optional[str]           = Query(None),
-    company: Optional[str]            = Query(None),
-    organization_id: Optional[str]    = Query(None),
-    db: sqlite3.Connection            = Depends(get_db),
+    x_org_id: str                   = Header(..., alias="X-Organization-ID"),
+    columns: Optional[List[str]]    = Query(None, description="Columns to include"),
+    status: Optional[str]           = Query(None),
+    location: Optional[str]         = Query(None),
+    department: Optional[str]       = Query(None),
+    position: Optional[str]         = Query(None),
+    company: Optional[str]          = Query(None),
+    db: sqlite3.Connection          = Depends(get_db),
 ):
     # Handle dynamic columns
     if columns:
@@ -133,24 +141,21 @@ async def search(
     else:
         select_clause = "*"
 
-    # build filters
-    filters = []
-    params = []
+    filters = ["organization_id = ?"]
+    params = [x_org_id]
     for name, val in [
         ("status", status),
         ("location", location),
         ("department", department),
         ("position", position),
         ("company", company),
-        ("organization_id", organization_id),
+        # ("organization_id", organization_id),
     ]:
         if val is not None:
             filters.append(f"{name} = ?")
             params.append(val)
 
-    where = f"WHERE {' AND '.join(filters)}" if filters else ""
+    where = f"WHERE {' AND '.join(filters)}"
     sql = f"SELECT {select_clause} FROM employees {where};"
-
-    # Execute and return
     rows = db.execute(sql, params).fetchall()
     return {"results": [dict(r) for r in rows]}
