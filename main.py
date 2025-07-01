@@ -12,7 +12,16 @@ _counters  = {}    # maps client_ip -> (window_start_ts, count)
 
 @app.middleware("http")
 async def rate_limit_middleware(request: Request, call_next):
-    ip = request.client.host
+    client = request.client
+    if client is None:
+        # fallback to the ASGI scope “client” tuple if needed
+        scope_client = request.scope.get("client")
+        if isinstance(scope_client, tuple):
+            ip = scope_client[0]
+        else:
+            ip = "0.0.0.0"
+    else:
+        ip = client.host
     now = time.time()
 
     start, count = _counters.get(ip, (now, 0))
@@ -97,6 +106,6 @@ async def search(
     where = f"WHERE {' AND '.join(filters)}" if filters else ""
     sql = f"SELECT {select_clause} FROM employees {where};"
 
-    # 3) Execute & return
+    # Execute and return
     rows = db.execute(sql, params).fetchall()
     return {"results": [dict(r) for r in rows]}

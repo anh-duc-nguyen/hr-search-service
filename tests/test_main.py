@@ -1,6 +1,8 @@
 # tests/test_main.py
 import sys
 import os
+import time
+import time
 
 # ensure project root is on PYTHONPATH
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir)))
@@ -141,3 +143,37 @@ def test_select_columns_and_filter():
     assert len(data["results"]) == 1
     # exact match on returned dict
     assert data["results"][0] == {"first_name": "Alex", "last_name": "Nguyen"}
+
+def test_rate_limiter_blocks_after_limit(monkeypatch):
+    # override RATE_LIMIT
+    # monkeypatch.setattr(main, "RATE_LIMIT", 3)
+    # main._counters.clear()
+
+    # first 3 requests should pass
+    for _ in range(3):
+        r = client.get("/search")
+        assert r.status_code == 200
+
+    # 4th request in same window should be blocked
+    r = client.get("/search")
+    assert r.status_code == 429
+    assert r.json()["detail"] == "Too Many Requests"
+
+def test_rate_limiter_resets_after_window(monkeypatch):
+    # override RATE_LIMIT and WINDOW to 0.01s
+    # monkeypatch.setattr(main, "RATE_LIMIT", 2)
+    # monkeypatch.setattr(main, "WINDOW", 0.01)
+    # main._counters.clear()
+
+    # two quick requests okay
+    assert client.get("/search").status_code == 200
+    assert client.get("/search").status_code == 200
+
+    # third one should be blocked
+    assert client.get("/search").status_code == 429
+
+    # wait for WINDOW to expire
+    time.sleep(0.02)
+
+    # counters reset → next request should succeed again
+    assert client.get("/search").status_code == 200
