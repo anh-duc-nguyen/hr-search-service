@@ -2,7 +2,6 @@
 import sys
 import os
 import time
-import time
 
 # ensure project root is on PYTHONPATH
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir)))
@@ -15,6 +14,7 @@ from fastapi.testclient import TestClient
 from main import app, get_db
 
 # --- Fixture: in‐memory SQLite DB ---
+# We insert thoses data just to make sure all of our unittest would have correct data to validate. 
 @pytest.fixture
 def db_conn():
     conn = sqlite3.connect(":memory:", check_same_thread=False)
@@ -71,48 +71,60 @@ client = TestClient(app)
 #     assert resp.status_code == 200
 #     assert resp.json() == {"message": "Employee Directory API"}
 
+# Test a raw /search, this one to test if we can search the entired database 
+# This was leave here because i need to test as admin that data insert correctly
+#  TODO: We will need to remove this in the feature
 def test_search_no_filters():
-    resp = client.get("/search")
+    resp = client.get("/search", headers={"X-Organization-ID": "org1"})
     assert resp.status_code == 200
     data = resp.json()
     assert "results" in data
-    assert len(data["results"]) == 3
+    assert len(data["results"]) == 2
+
 
 def test_search_status_filter():
-    resp = client.get("/search", params={"status": "Active"})
+    resp = client.get("/search", headers={"X-Organization-ID": "org1"}, params={"status": "Active"})
     assert resp.status_code == 200
     data = resp.json()
     assert len(data["results"]) == 1
     assert data["results"][0]["first_name"] == "Alex"
 
 def test_search_multiple_filters():
-    resp = client.get("/search", params={"status": "Not Started", "location": "USA"})
+    resp = client.get(
+        "/search",
+        headers={"X-Organization-ID": "org1"},
+        params={"status": "Not Started", "location": "USA"}
+    )
     assert resp.status_code == 200
     data = resp.json()
     assert len(data["results"]) == 1
     assert data["results"][0]["last_name"] == "Smith"
 
 def test_search_no_match():
-    resp = client.get("/search", params={"status": "Active", "location": "USA"})
+    resp = client.get(
+        "/search",
+        headers={"X-Organization-ID": "org1"},
+        params={"status": "Active", "location": "USA"}
+    )
     assert resp.status_code == 200
     data = resp.json()
     assert data["results"] == []
 
 def test_search_no_filters_new():
-    resp = client.get("/search")
+    resp = client.get("/search", headers={"X-Organization-ID": "org1"})
     assert resp.status_code == 200
     data = resp.json()
-    assert len(data["results"]) == 3
+    assert len(data["results"]) == 2
 
 def test_search_status_filter_new():
-    resp = client.get("/search", params={"status": "Active"})
+    resp = client.get("/search", headers={"X-Organization-ID": "org1"}, params={"status": "Active"})
     assert resp.status_code == 200
     data = resp.json()
     assert len(data["results"]) == 1
     assert data["results"][0]["first_name"] == "Alex"
 
 def test_search_company_filter():
-    resp = client.get("/search", params={"company": "Globex"})
+    resp = client.get("/search", headers={"X-Organization-ID": "org1"}, params={"company": "Globex"})
     assert resp.status_code == 200
     data = resp.json()
     assert len(data["results"]) == 1
@@ -121,18 +133,19 @@ def test_search_company_filter():
 def test_select_columns_only():
     resp = client.get(
         "/search",
+        headers={"X-Organization-ID": "org1"},
         params=[("columns", "first_name"), ("columns", "last_name")]
     )
     assert resp.status_code == 200
     data = resp.json()
-    # ensure only the two keys are returned
     for item in data["results"]:
         assert set(item.keys()) == {"first_name", "last_name"}
-    assert len(data["results"]) == 3
+    assert len(data["results"]) == 2
 
 def test_select_columns_and_filter():
     resp = client.get(
         "/search",
+        headers={"X-Organization-ID": "org1"},
         params=[
             ("columns", "first_name"),
             ("columns", "last_name"),
@@ -142,39 +155,28 @@ def test_select_columns_and_filter():
     assert resp.status_code == 200
     data = resp.json()
     assert len(data["results"]) == 1
-    # exact match on returned dict
     assert data["results"][0] == {"first_name": "Alex", "last_name": "Nguyen"}
 
 def test_rate_limiter_blocks_after_limit(monkeypatch):
-    # override RATE_LIMIT
     monkeypatch.setattr(main, "RATE_LIMIT", 3)
     main._counters.clear()
 
-    # first 3 requests should pass
     for _ in range(3):
-        r = client.get("/search")
+        r = client.get("/search", headers={"X-Organization-ID": "org1"})
         assert r.status_code == 200
 
-    # 4th request in same window should be blocked
-    r = client.get("/search")
+    r = client.get("/search", headers={"X-Organization-ID": "org1"})
     assert r.status_code == 429
     assert r.json()["detail"] == "Too Many Requests"
 
 def test_rate_limiter_resets_after_window(monkeypatch):
-    # override RATE_LIMIT and WINDOW to 0.01s
     monkeypatch.setattr(main, "RATE_LIMIT", 1)
     monkeypatch.setattr(main, "WINDOW", 0.01)
     main._counters.clear()
 
-    # quick requests okay
-    assert client.get("/search").status_code == 200
-    # assert client.get("/search").status_code == 200
+    assert client.get("/search", headers={"X-Organization-ID": "org1"}).status_code == 200
+    assert client.get("/search", headers={"X-Organization-ID": "org1"}).status_code == 429
 
-    # second one should be blocked
-    assert client.get("/search").status_code == 429
-
-    # wait for WINDOW to expire
     time.sleep(0.02)
 
-    # counters reset → next request should succeed again
-    assert client.get("/search").status_code == 200
+    assert client.get("/search", headers={"X-Organization-ID": "org1"}).status_code == 200
