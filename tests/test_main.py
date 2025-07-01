@@ -94,3 +94,50 @@ def test_search_no_match():
     assert resp.status_code == 200
     data = resp.json()
     assert data["results"] == []
+
+def test_search_no_filters():
+    resp = client.get("/search")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data["results"]) == 3
+
+def test_search_status_filter():
+    resp = client.get("/search", params={"status": "Active"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data["results"]) == 1
+    assert data["results"][0]["first_name"] == "Alex"
+
+def test_search_company_filter():
+    resp = client.get("/search", params={"company": "Globex"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data["results"]) == 1
+    assert data["results"][0]["company"] == "Globex"
+
+def test_select_columns_only():
+    resp = client.get(
+        "/search",
+        params=[("columns", "first_name"), ("columns", "last_name")]
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    # ensure only the two keys are returned
+    for item in data["results"]:
+        assert set(item.keys()) == {"first_name", "last_name"}
+    assert len(data["results"]) == 3
+
+def test_select_columns_and_filter():
+    resp = client.get(
+        "/search",
+        params=[
+            ("columns", "first_name"),
+            ("columns", "last_name"),
+            ("status", "Active")
+        ]
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data["results"]) == 1
+    # exact match on returned dict
+    assert data["results"][0] == {"first_name": "Alex", "last_name": "Nguyen"}
