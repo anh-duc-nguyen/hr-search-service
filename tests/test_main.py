@@ -95,13 +95,13 @@ def test_search_no_match():
     data = resp.json()
     assert data["results"] == []
 
-def test_search_no_filters():
+def test_search_no_filters_new():
     resp = client.get("/search")
     assert resp.status_code == 200
     data = resp.json()
     assert len(data["results"]) == 3
 
-def test_search_status_filter():
+def test_search_status_filter_new():
     resp = client.get("/search", params={"status": "Active"})
     assert resp.status_code == 200
     data = resp.json()
