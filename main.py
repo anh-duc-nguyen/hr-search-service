@@ -1,6 +1,6 @@
 # main.py
 from fastapi import FastAPI, Query, Depends, HTTPException, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, HTMLResponse
 from typing import List, Optional
 import sqlite3
 import time
@@ -65,9 +65,49 @@ async def get_db():
     finally:
         conn.close()
 
-@app.get("/")
-async def root():
-    return {"message": "Employee Directory API"}
+# @app.get("/")
+# async def root():
+#     return {"message": "Employee Directory API"}
+
+@app.get("/", response_class=HTMLResponse)
+async def ui():
+    return """
+    <!-- This is AI stuff. I can't code HTML please just don't force me to code html -->
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <title>Employee Directory Search</title>
+    </head>
+    <body style="font-family:sans-serif; padding:2rem;">
+      <h1>🔍 Employee Directory</h1>
+      <form id="searchForm">
+        <label>Status: <input name="status" /></label><br/>
+        <label>Location: <input name="location" /></label><br/>
+        <label>Department: <input name="department" /></label><br/>
+        <label>Position: <input name="position" /></label><br/>
+        <label>Company: <input name="company" /></label><br/>
+        <label>Organization ID: <input name="organization_id" /></label><br/>
+        <button type="submit">Search</button>
+      </form>
+      <pre id="results" style="background:#f4f4f4; padding:1rem; margin-top:1rem;"></pre>
+      <script>
+        const form = document.getElementById('searchForm');
+        const out  = document.getElementById('results');
+        form.addEventListener('submit', async e => {
+          e.preventDefault();
+          const params = new URLSearchParams(
+            Array.from(new FormData(form).entries())
+              .filter(([_, v]) => v)
+          );
+          const res = await fetch('/search?' + params);
+          const data = await res.json();
+          out.textContent = JSON.stringify(data, null, 2);
+        });
+      </script>
+    </body>
+    </html>
+    """
 
 @app.get("/search")
 async def search(
