@@ -1,5 +1,6 @@
 # main.py
 from fastapi import FastAPI, Query, Depends, HTTPException, Request
+from fastapi.responses import JSONResponse
 from typing import List, Optional
 import sqlite3
 import time
@@ -31,7 +32,11 @@ async def rate_limit_middleware(request: Request, call_next):
 
     if count >= RATE_LIMIT:
         # too many requests in this WINDOW
-        raise HTTPException(status_code=429, detail="Too Many Requests")
+        # raise HTTPException(status_code=429, detail="Too Many Requests")
+        return JSONResponse(
+            status_code=429,
+            content={"detail": "Too Many Requests"}
+        )
 
     # increment and store
     _counters[ip] = (start, count + 1)

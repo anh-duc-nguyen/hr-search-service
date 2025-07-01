@@ -9,6 +9,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), os.pa
 
 import sqlite3
 import pytest
+import main                    # <- make sure to import the module itself
 from fastapi.testclient import TestClient
 
 from main import app, get_db
@@ -146,8 +147,8 @@ def test_select_columns_and_filter():
 
 def test_rate_limiter_blocks_after_limit(monkeypatch):
     # override RATE_LIMIT
-    # monkeypatch.setattr(main, "RATE_LIMIT", 3)
-    # main._counters.clear()
+    monkeypatch.setattr(main, "RATE_LIMIT", 3)
+    main._counters.clear()
 
     # first 3 requests should pass
     for _ in range(3):
@@ -161,15 +162,15 @@ def test_rate_limiter_blocks_after_limit(monkeypatch):
 
 def test_rate_limiter_resets_after_window(monkeypatch):
     # override RATE_LIMIT and WINDOW to 0.01s
-    # monkeypatch.setattr(main, "RATE_LIMIT", 2)
-    # monkeypatch.setattr(main, "WINDOW", 0.01)
-    # main._counters.clear()
+    monkeypatch.setattr(main, "RATE_LIMIT", 1)
+    monkeypatch.setattr(main, "WINDOW", 0.01)
+    main._counters.clear()
 
-    # two quick requests okay
+    # quick requests okay
     assert client.get("/search").status_code == 200
-    assert client.get("/search").status_code == 200
+    # assert client.get("/search").status_code == 200
 
-    # third one should be blocked
+    # second one should be blocked
     assert client.get("/search").status_code == 429
 
     # wait for WINDOW to expire

@@ -1,4 +1,5 @@
 # init_db.py
+# TO AVOID CONFLICT YOU SHOULD RUN THIS FILE ONLY ONE TIME. YOU CAN DELETE FILE employees.db and retry again.
 import sqlite3
 import random
 import string
